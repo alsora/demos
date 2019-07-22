@@ -18,7 +18,9 @@
 #include "rclcpp/rclcpp.hpp"
 // TODO(jacobperron): Remove this once it is included as part of 'rclcpp.hpp'
 #include "rclcpp_action/rclcpp_action.hpp"
-
+#include "rclcpp_components/register_node_macro.hpp"
+namespace action_tutorials
+{
 class FibonacciActionServer : public rclcpp::Node
 {
 public:
@@ -65,6 +67,13 @@ private:
     return rclcpp_action::CancelResponse::ACCEPT;
   }
 
+  void handle_accepted(const std::shared_ptr<GoalHandleFibonacci> goal_handle)
+  {
+    using namespace std::placeholders;
+    // this needs to return quickly to avoid blocking the executor, so spin up a new thread
+    std::thread{std::bind(&FibonacciActionServer::execute, this, _1), goal_handle}.detach();
+  }
+  
   void execute(const std::shared_ptr<GoalHandleFibonacci> goal_handle)
   {
     RCLCPP_INFO(this->get_logger(), "Executing goal");
@@ -81,14 +90,14 @@ private:
       if (goal_handle->is_canceling()) {
         result->sequence = sequence;
         goal_handle->canceled(result);
-        RCLCPP_INFO(this->get_logger(), "Goal Canceled");
+        RCLCPP_INFO(this->get_logger(), "Goal canceled");
         return;
       }
       // Update sequence
       sequence.push_back(sequence[i] + sequence[i - 1]);
       // Publish feedback
       goal_handle->publish_feedback(feedback);
-      RCLCPP_INFO(this->get_logger(), "Publish Feedback");
+      RCLCPP_INFO(this->get_logger(), "Publish feedback");
 
       loop_rate.sleep();
     }
@@ -97,26 +106,11 @@ private:
     if (rclcpp::ok()) {
       result->sequence = sequence;
       goal_handle->succeed(result);
-      RCLCPP_INFO(this->get_logger(), "Goal Succeeded");
+      RCLCPP_INFO(this->get_logger(), "Goal succeeded");
     }
-  }
-
-  void handle_accepted(const std::shared_ptr<GoalHandleFibonacci> goal_handle)
-  {
-    using namespace std::placeholders;
-    // this needs to return quickly to avoid blocking the executor, so spin up a new thread
-    std::thread{std::bind(&FibonacciActionServer::execute, this, _1), goal_handle}.detach();
   }
 };  // class FibonacciActionServer
 
-int main(int argc, char ** argv)
-{
-  rclcpp::init(argc, argv);
+}  // namespace action_tutorials
 
-  auto action_server = std::make_shared<FibonacciActionServer>();
-
-  rclcpp::spin(action_server);
-
-  rclcpp::shutdown();
-  return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(action_tutorials::FibonacciActionServer)
